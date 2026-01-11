@@ -268,8 +268,6 @@ async def short_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =====================================================
 # BOT STARTUP
 # =====================================================
-from dotenv import load_dotenv
-load_dotenv()
 
 TOKEN = os.getenv("BOT_TOKEN")
 
