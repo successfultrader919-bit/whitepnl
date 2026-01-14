@@ -21,10 +21,27 @@ def create_pnl_card(
     starttype="long"
 ):
     # ---------------- Calculations ----------------
-    margin_ratio = round(random.uniform(3, 5), 2)
-    roi = abs(((mark_price - entry_price) / entry_price) * lev * 100)
-    unrealized_pnl = abs((roi * margin) / 100)
-    size_usdt = margin * lev
+# ---------------- REAL FUTURES MATH ----------------
+    position = margin * lev
+
+    if starttype == "long":
+        unrealized_pnl = position * (mark_price - entry_price) / entry_price
+    else:
+        unrealized_pnl = position * (entry_price - mark_price) / entry_price
+
+    roi = (unrealized_pnl / margin) * 100
+
+    # maintenance margin (0.5% typical Binance)
+    maintenance = position * 0.005
+    equity = margin + unrealized_pnl
+
+    if equity <= 0:
+        margin_ratio = 100
+    else:
+        margin_ratio = (maintenance / equity) * 100
+
+    size_usdt = position
+
 
     banner = Image.new("RGB", (1080, 620), color=(255,255,255))
     draw = ImageDraw.Draw(banner)
@@ -99,7 +116,9 @@ def create_pnl_card(
     x_start, x_end = bbox[0], bbox[2]
     for dx in range(x_start, x_end, dot_spacing):
         draw.ellipse((dx, underline_y, dx + dot_radius, underline_y + dot_radius), fill=dot_color)
-    draw.text((38, 172), f"{unrealized_pnl:.1f}", font=font_gnum, fill=COLOR_GREEN)
+    pnl_color = COLOR_GREEN if unrealized_pnl >= 0 else COLOR_RED
+    draw.text((38, 172), f"{unrealized_pnl:+.1f}", font=font_gnum, fill=pnl_color)
+
 
     draw.text((38, 257), "Size (USDT)", font=font_row, fill=COLOR_TEXT_DIM)
     bbox = draw.textbbox((38, 257), "Size (USDT)", font=font_row)
@@ -152,7 +171,8 @@ def create_pnl_card(
     roi_label_end_x = roi_label_bbox[2]
 
     # ROI value
-    roi_text = f"+ {roi:.1f}%"
+    roi_color = COLOR_GREEN if roi >= 0 else COLOR_RED
+    roi_text = f"{roi:+.1f}%"
     roi_value_bbox = draw.textbbox((0, 0), roi_text, font=font_gnum)
     roi_value_width = roi_value_bbox[2] - roi_value_bbox[0]
 
@@ -161,7 +181,7 @@ def create_pnl_card(
         (roi_label_end_x - roi_value_width, 178),
         roi_text,
         font=font_gnum,
-        fill=COLOR_GREEN
+        fill=roi_color
     )
 
     draw.text((875, 257), "Margin Ratio", font=font_row, fill=COLOR_TEXT_DIM)
@@ -178,7 +198,9 @@ def create_pnl_card(
     
     mr_text = f"{margin_ratio:.2f}%"
     mr_bbox = draw.textbbox((0, 0), mr_text, font=font_num)
-    draw.text((1040 - (mr_bbox[2] - mr_bbox[0]), 305), mr_text, font=font_num, fill=COLOR_GREEN)
+    mr_color = COLOR_GREEN if margin_ratio < 80 else COLOR_RED
+    draw.text((1040 - (mr_bbox[2] - mr_bbox[0]), 305), mr_text, font=font_num, fill=mr_color)
+
 
     draw.text((821, 381), "Liq. Price (USDT)", font=font_row, fill=COLOR_TEXT_DIM)
     bbox = draw.textbbox((821, 381), "Liq. Price (USDT)", font=font_row)
@@ -194,9 +216,9 @@ def create_pnl_card(
 
 
     if starttype == "long":
-        liq_price = entry_price * round(random.uniform(0.65, 0.7), 2)
+        liq_price = entry_price * (1 - 1/lev)
     else:
-        liq_price = entry_price * round(random.uniform(1.4, 1.5), 2)
+        liq_price = entry_price * (1 + 1/lev)
 
     liq_text = f"{liq_price:.4f}"
     liq_bbox = draw.textbbox((0, 0), liq_text, font=font_num)
